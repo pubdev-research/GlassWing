@@ -5,7 +5,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-coming.soon-b31b1b.svg)](https://arxiv.org/abs/YOUR_PAPER_ID)
 
 **GlassWing is the first tailored static analysis approach for Flutter Android apps, designed to bridge the gap between Dart and Java/Kotlin by revealing their implicit invocation relations for a more comprehensive analysis.**
-![image](https://github.com/papersubmit-anonymous/GlassWing/blob/main/fig/flutterAppOverviewNew_00.png)
+![image](https://github.com/glasswing-ase25/GlassWing/blob/main/fig/flutterAppOverviewNew_00.png)
 
 PS: We provide a ground-truth benchmark and real-world dataset, which can be accessed via the following [Dropbox](https://www.dropbox.com/scl/fo/mbasmdn12j7izokd4skuk/ANrcRucnYwg98fI1nAMq5eA?rlkey=uavpcsnbvz3zo0b5lpz5rj180&st=aieabayk&dl=0) link.
 
