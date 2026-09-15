@@ -69,7 +69,11 @@ jobs:
           android_jar="$sdk_root/platforms/android-30/android.jar"
           if [[ ! -f "$android_jar" ]]; then
             sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+            set +o pipefail
             yes | "$sdkmanager_bin" "platforms;android-30" >/dev/null
+            sdkmanager_status="${PIPESTATUS[1]}"
+            set -o pipefail
+            test "$sdkmanager_status" -eq 0
           fi
           test -f "$android_jar"
           echo "GLASSWING_ANDROID_JAR=$android_jar" >> "$GITHUB_ENV"
