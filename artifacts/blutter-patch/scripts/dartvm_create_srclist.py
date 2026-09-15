@@ -60,6 +60,22 @@ for path in ('vm', 'platform', 'vm/heap', 'vm/ffi'):
         if src.endswith('h'):
             hdrs.append(os.path.join(path, src))
 
+# Dart 3.6 and later moved the regular-expression implementation into its
+# own source group, which is not part of vm_sources.gni. Include the group
+# when present while retaining compatibility with older Dart releases.
+regexp_path = os.path.join(BASEDIR, 'vm', 'regexp')
+if os.path.isfile(os.path.join(regexp_path, 'regexp_sources.gni')):
+    for src in get_src_files(regexp_path):
+        cc_srcs.append(os.path.join(regexp_path, src))
+        if src.endswith('h'):
+            hdrs.append(os.path.join(regexp_path, src))
+
+# Recent Dart releases select this implementation from their GN build based
+# on the sanitizer configuration instead of listing it in platform_sources.
+no_tsan_src = os.path.join(BASEDIR, 'platform', 'no_tsan.cc')
+if os.path.isfile(no_tsan_src):
+    cc_srcs.append(no_tsan_src)
+
 # extra source files
 extra_files = ( 'vm/version.cc', 'vm/dart_api_impl.cc', 'vm/native_api_impl.cc',
         'vm/compiler/runtime_api.cc', 'vm/compiler/jit/compiler.cc')
@@ -101,4 +117,3 @@ with open('sourcelist.cmake', 'w') as f:
     #f.write('set(PUB_HDRS \n    ')
     #f.write('\n    '.join(hdrs))
     #f.write('\n)\n')
-
