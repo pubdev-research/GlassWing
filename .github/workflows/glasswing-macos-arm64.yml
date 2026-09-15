@@ -55,7 +55,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check PyYAML
+          brew install llvm@16 cmake ninja pkg-config icu4c capstone
+          python -m pip install --disable-pip-version-check \
+            PyYAML \
+            pyelftools \
+            requests
 
       - name: Select Android platform
         shell: bash
