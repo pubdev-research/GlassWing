@@ -163,16 +163,31 @@ class FlutterAPKAnalyzer:
             
             print(f"Executing command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.script_dir)
-            
-            if result.returncode == 0:
-                print("Glasswing analysis complete")
-                print(f"stdout: {result.stdout}")
-                return True
-            else:
-                print(f"Glasswing analysis failed:")
-                print(f"stdout: {result.stdout}")
+
+            print(f"stdout: {result.stdout}")
+            if result.stderr:
                 print(f"stderr: {result.stderr}")
+
+            if result.returncode != 0:
+                print(f"Glasswing analysis failed:")
                 return False
+
+            with open(config_path, 'r', encoding='utf-8') as f:
+                preprocessor_type = yaml.safe_load(f).get(
+                    'preprocessorType', 'raw'
+                )
+            result_path = config_path.parent / (
+                f"analysis_results_{preprocessor_type}.txt"
+            )
+            if not result_path.is_file() or result_path.stat().st_size == 0:
+                print(
+                    "Glasswing exited successfully but did not produce "
+                    f"the expected result file: {result_path}"
+                )
+                return False
+
+            print(f"Glasswing analysis complete: {result_path}")
+            return True
                 
         except Exception as e:
             print(f"Error running Glasswing: {e}")

@@ -82,6 +82,15 @@ jobs:
             test "$sdkmanager_status" -eq 0
           fi
           test -f "$android_jar"
+
+          # GlassWing's bundled JAR contains this build-machine path in its
+          # preliminary Soot pass. Map it to the runner SDK so that the class
+          # recovery managers are initialized before Core preprocessing.
+          legacy_android_jar="/Users/syc/Library/Android/sdk/platforms/android-30/android.jar"
+          sudo mkdir -p "$(dirname "$legacy_android_jar")"
+          sudo ln -sf "$android_jar" "$legacy_android_jar"
+          test -f "$legacy_android_jar"
+
           echo "GLASSWING_ANDROID_JAR=$android_jar" >> "$GITHUB_ENV"
 
       - name: Prepare APK directories
