@@ -19,8 +19,11 @@ class FlutterAPKAnalyzer:
         self.script_dir = Path(__file__).parent.resolve()
         
         self.blutter_script = self.script_dir / "blutter-patch" / "blutter.py"
-        self.glasswing_jar = self.script_dir / "Glasswing.jar"
+        self.glasswing_jar = Path(
+            os.environ.get("GLASSWING_JAR", self.script_dir / "Glasswing.jar")
+        ).resolve()
         self.base_config_path = self.script_dir / "flowdroid-config.yaml"
+        self.android_jar = os.environ.get("GLASSWING_ANDROID_JAR")
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -117,6 +120,17 @@ class FlutterAPKAnalyzer:
     def create_glasswing_config(self, apk_path: Path, work_dir: Path, 
                               preprocessor_type: str) -> Path:
         config = self.load_base_config()
+
+        # Keep generated configurations portable. The repository's template
+        # contains machine-specific paths, while these resources always live
+        # next to this driver. CI can select an Android platform JAR through
+        # GLASSWING_ANDROID_JAR.
+        if self.android_jar:
+            config['androidJars'] = str(Path(self.android_jar).resolve())
+        config['sourcesAndSinks'] = str(self.script_dir / "SourcesAndSinks.txt")
+        config['dsirBatchProcessorPath'] = str(
+            self.script_dir / "coreir_processor"
+        )
         
         config.update({
             'apkPath': str(apk_path),

@@ -1,0 +1,141 @@
+name: GlassWing macOS ARM64
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: Optional direct HTTPS URL of an ARM64 Flutter APK
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  analyze:
+    name: Analyze APK with GlassWing
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out GlassWing
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter for the built-in smoke app
+        if: ${{ inputs.apk_url == '' }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.4"
+          channel: stable
+          cache: true
+
+      - name: Verify Apple Silicon environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+          file artifacts/coreir_processor
+          chmod +x artifacts/coreir_processor
+          chmod +x artifacts/blutter-patch/blutter.py
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check PyYAML
+
+      - name: Select Android platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [[ -z "$sdk_root" ]]; then
+            echo "ANDROID_HOME and ANDROID_SDK_ROOT are unset" >&2
+            exit 1
+          fi
+          android_jar="$sdk_root/platforms/android-30/android.jar"
+          if [[ ! -f "$android_jar" ]]; then
+            sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+            yes | "$sdkmanager_bin" "platforms;android-30" >/dev/null
+          fi
+          test -f "$android_jar"
+          echo "GLASSWING_ANDROID_JAR=$android_jar" >> "$GITHUB_ENV"
+
+      - name: Prepare APK directories
+        shell: bash
+        run: mkdir -p "$RUNNER_TEMP/glasswing-apks" "$RUNNER_TEMP/glasswing-output"
+
+      - name: Download supplied APK
+        if: ${{ inputs.apk_url != '' }}
+        env:
+          APK_URL: ${{ inputs.apk_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 "$APK_URL" \
+            --output "$RUNNER_TEMP/glasswing-apks/input.apk"
+          unzip -l "$RUNNER_TEMP/glasswing-apks/input.apk" >/dev/null
+
+      - name: Build ARM64 Flutter smoke APK
+        if: ${{ inputs.apk_url == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_root="$RUNNER_TEMP/glasswing-smoke"
+          flutter create \
+            --platforms=android \
+            --org com.example \
+            --project-name glasswing_smoke \
+            "$smoke_root"
+          cp .github/glasswing-smoke/main.dart "$smoke_root/lib/main.dart"
+          cp .github/glasswing-smoke/MainActivity.kt \
+            "$smoke_root/android/app/src/main/kotlin/com/example/glasswing_smoke/MainActivity.kt"
+          pushd "$smoke_root"
+          flutter build apk \
+            --release \
+            --target-platform android-arm64
+          popd
+          cp "$smoke_root/build/app/outputs/flutter-apk/app-release.apk" \
+            "$RUNNER_TEMP/glasswing-apks/input.apk"
+          unzip -l "$RUNNER_TEMP/glasswing-apks/input.apk" \
+            | grep -q 'lib/arm64-v8a/libapp.so'
+
+      - name: Run GlassWing Core and Raw modes
+        shell: bash
+        run: |
+          set -o pipefail
+          python artifacts/flutter_apk_analyzer.py \
+            "$RUNNER_TEMP/glasswing-apks" \
+            "$RUNNER_TEMP/glasswing-output" \
+            2>&1 | tee "$RUNNER_TEMP/glasswing-run.log"
+
+      - name: Verify Core-mode output
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_result="$(find "$RUNNER_TEMP/glasswing-output" \
+            -type f -name analysis_results_core.txt -print -quit)"
+          test -n "$core_result"
+          test -s "$core_result"
+          grep -q "Analysis Results" "$core_result"
+
+      - name: Upload analysis artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glasswing-results-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/glasswing-output
+            ${{ runner.temp }}/glasswing-run.log
