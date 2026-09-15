@@ -1,6 +1,9 @@
 name: GlassWing macOS ARM64
 
 on:
+  push:
+    branches:
+      - codex/macos-arm64-smoke
   workflow_dispatch:
     inputs:
       apk_url:
