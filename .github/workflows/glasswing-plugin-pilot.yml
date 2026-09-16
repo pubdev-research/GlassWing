@@ -13,6 +13,18 @@ jobs:
       max-parallel: 3
       matrix:
         include:
+          - plugin: easy_pdf_viewer
+            version: 1.0.8
+            channel: easy_pdf_viewer_plugin
+            event_channel: ''
+            method: getPage
+            payload_kind: map
+          - plugin: pdf_merger
+            version: 0.0.6
+            channel: pdf_merger
+            event_channel: ''
+            method: mergeMultiplePDF
+            payload_kind: map
           - plugin: flutter_notification_listener_plus
             version: 1.3.7
             channel: flutter_notification_listener/bg_method
