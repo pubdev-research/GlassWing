@@ -48,7 +48,7 @@ def main() -> None:
         "compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 34"
     )
     app_text = app_text.replace(
-        "minSdkVersion flutter.minSdkVersion", "minSdkVersion 21"
+        "minSdkVersion flutter.minSdkVersion", "minSdkVersion 23"
     )
     app_gradle.write_text(app_text, encoding="utf-8")
 
