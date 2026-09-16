@@ -2,14 +2,6 @@ name: GlassWing plugin-host pilot
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - codex/macos-arm64-smoke
-    paths:
-      - .github/workflows/glasswing-plugin-pilot.yml
-      - .github/glasswing-benchmark/**
-      - artifacts/flutter_apk_analyzer.py
-      - artifacts/blutter-patch/**
 
 jobs:
   analyze:
@@ -164,7 +156,7 @@ jobs:
             "$apk_root/${PLUGIN}.apk"
           unzip -l "$apk_root/${PLUGIN}.apk" | grep -q 'lib/arm64-v8a/libapp.so'
 
-      - name: Run GlassWing Core and Raw modes
+      - name: Run GlassWing Core mode
         env:
           PLUGIN: ${{ matrix.plugin }}
         shell: bash
