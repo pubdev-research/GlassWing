@@ -1,0 +1,197 @@
+name: GlassWing plugin-host pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/macos-arm64-smoke
+    paths:
+      - .github/workflows/glasswing-plugin-pilot.yml
+      - .github/glasswing-benchmark/**
+      - artifacts/flutter_apk_analyzer.py
+      - artifacts/blutter-patch/**
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.plugin }} host APK
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - plugin: aes_gcm_plugin
+            version: 0.0.2
+            channel: aes_gcm_plugin
+            method: gcmEncrypt
+          - plugin: apk_sideload
+            version: 0.0.2
+            channel: install_apk
+            method: installApk
+          - plugin: advance_pdf_viewer2
+            version: 2.0.5+1
+            channel: flutter_plugin_pdf_viewer
+            method: getNumberOfPages
+
+    steps:
+      - name: Check out GlassWing
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up compatible Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.7.12"
+          channel: stable
+          cache: true
+
+      - name: Verify Apple Silicon environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+          chmod +x artifacts/coreir_processor artifacts/blutter-patch/blutter.py
+
+      - name: Install analysis dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install llvm@16 cmake ninja pkg-config icu4c capstone
+          python -m pip install --disable-pip-version-check \
+            PyYAML \
+            pyelftools \
+            requests
+
+      - name: Select Android platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          android_jar="$sdk_root/platforms/android-30/android.jar"
+          if [[ ! -f "$android_jar" ]]; then
+            sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+            set +o pipefail
+            yes | "$sdkmanager_bin" "platforms;android-30" >/dev/null
+            sdkmanager_status="${PIPESTATUS[1]}"
+            set -o pipefail
+            test "$sdkmanager_status" -eq 0
+          fi
+          test -f "$android_jar"
+
+          legacy_android_jar="/Users/syc/Library/Android/sdk/platforms/android-30/android.jar"
+          sudo mkdir -p "$(dirname "$legacy_android_jar")"
+          sudo ln -sf "$android_jar" "$legacy_android_jar"
+          test -f "$legacy_android_jar"
+          echo "GLASSWING_ANDROID_JAR=$android_jar" >> "$GITHUB_ENV"
+
+      - name: Build one-plugin host APK
+        env:
+          PLUGIN: ${{ matrix.plugin }}
+          VERSION: ${{ matrix.version }}
+          CHANNEL: ${{ matrix.channel }}
+          METHOD: ${{ matrix.method }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bench_root="$RUNNER_TEMP/glasswing-benchmark"
+          plugin_root="$bench_root/plugin"
+          host_root="$bench_root/host"
+          apk_root="$RUNNER_TEMP/glasswing-apks"
+          mkdir -p "$plugin_root" "$apk_root"
+
+          curl --fail --location --retry 3 \
+            "https://pub.dev/api/archives/${PLUGIN}-${VERSION}.tar.gz" \
+            --output "$bench_root/plugin.tar.gz"
+          tar -xzf "$bench_root/plugin.tar.gz" -C "$plugin_root"
+
+          flutter create \
+            --platforms=android \
+            --org dev.fluql.benchmark \
+            --project-name glasswing_plugin_host \
+            "$host_root"
+          cp .github/glasswing-benchmark/main.dart "$host_root/lib/main.dart"
+          python .github/glasswing-benchmark/prepare_host.py \
+            "$PLUGIN" "$plugin_root" "$host_root"
+
+          build_started="$(date +%s)"
+          pushd "$host_root"
+          flutter pub get
+          flutter build apk \
+            --release \
+            --target-platform android-arm64 \
+            --dart-define="GW_PLUGIN=$PLUGIN" \
+            --dart-define="GW_CHANNEL=$CHANNEL" \
+            --dart-define="GW_METHOD=$METHOD"
+          popd
+          build_finished="$(date +%s)"
+
+          cp "$host_root/build/app/outputs/flutter-apk/app-release.apk" \
+            "$apk_root/${PLUGIN}.apk"
+          unzip -l "$apk_root/${PLUGIN}.apk" | grep -q 'lib/arm64-v8a/libapp.so'
+
+          mkdir -p "$RUNNER_TEMP/glasswing-metadata"
+          printf '{"plugin":"%s","version":"%s","channel":"%s","method":"%s","build_seconds":%s}\n' \
+            "$PLUGIN" "$VERSION" "$CHANNEL" "$METHOD" \
+            "$((build_finished-build_started))" \
+            > "$RUNNER_TEMP/glasswing-metadata/metadata.json"
+
+      - name: Run GlassWing Core and Raw modes
+        env:
+          PLUGIN: ${{ matrix.plugin }}
+        shell: bash
+        run: |
+          set -o pipefail
+          analysis_started="$(date +%s)"
+          python artifacts/flutter_apk_analyzer.py \
+            "$RUNNER_TEMP/glasswing-apks" \
+            "$RUNNER_TEMP/glasswing-output" \
+            2>&1 | tee "$RUNNER_TEMP/glasswing-run.log"
+          analyzer_status="${PIPESTATUS[0]}"
+          analysis_finished="$(date +%s)"
+          printf '{"analysis_seconds":%s,"analyzer_exit_code":%s}\n' \
+            "$((analysis_finished-analysis_started))" "$analyzer_status" \
+            > "$RUNNER_TEMP/glasswing-metadata/timing.json"
+          exit "$analyzer_status"
+
+      - name: Verify analysis outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_result="$(find "$RUNNER_TEMP/glasswing-output" -type f \
+            -name analysis_results_core.txt -print -quit)"
+          raw_result="$(find "$RUNNER_TEMP/glasswing-output" -type f \
+            -name analysis_results_raw.txt -print -quit)"
+          test -n "$core_result"
+          test -s "$core_result"
+          test -n "$raw_result"
+          test -s "$raw_result"
+          grep -q "Analysis Results" "$core_result"
+          grep -q "Analysis Results" "$raw_result"
+
+      - name: Upload compact pilot results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glasswing-pilot-${{ matrix.plugin }}-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/glasswing-output/**/analysis_results_*.txt
+            ${{ runner.temp }}/glasswing-output/**/apk_info.txt
+            ${{ runner.temp }}/glasswing-output/**/flowdroid-config-*.yaml
+            ${{ runner.temp }}/glasswing-run.log
+            ${{ runner.temp }}/glasswing-metadata
+            ${{ runner.temp }}/glasswing-apks/${{ matrix.plugin }}.apk
