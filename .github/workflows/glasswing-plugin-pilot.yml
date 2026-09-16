@@ -13,18 +13,21 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          - plugin: aes_gcm_plugin
-            version: 0.0.2
-            channel: aes_gcm_plugin
-            method: gcmEncrypt
-          - plugin: apk_sideload
-            version: 0.0.2
-            channel: install_apk
-            method: installApk
-          - plugin: advance_pdf_viewer2
-            version: 2.0.5+1
-            channel: flutter_plugin_pdf_viewer
-            method: getNumberOfPages
+          - plugin: easy_pdf_viewer
+            version: 1.0.8
+            channel: easy_pdf_viewer_plugin
+            event_channel: ''
+            method: getPage
+          - plugin: flutter_unad_ads_global
+            version: 1.0.15
+            channel: flutter_unad_ads_global
+            event_channel: flutter_unad_ads_global_event
+            method: showSplashAd
+          - plugin: pdf_merger
+            version: 0.0.6
+            channel: pdf_merger
+            event_channel: ''
+            method: mergeMultiplePDF
 
     steps:
       - name: Check out GlassWing
@@ -105,6 +108,7 @@ jobs:
           PLUGIN: ${{ matrix.plugin }}
           VERSION: ${{ matrix.version }}
           CHANNEL: ${{ matrix.channel }}
+          EVENT_CHANNEL: ${{ matrix.event_channel }}
           METHOD: ${{ matrix.method }}
         shell: bash
         run: |
@@ -138,6 +142,7 @@ jobs:
             --target-platform android-arm64 \
             --dart-define="GW_PLUGIN=$PLUGIN" \
             --dart-define="GW_CHANNEL=$CHANNEL" \
+            --dart-define="GW_EVENT_CHANNEL=$EVENT_CHANNEL" \
             --dart-define="GW_METHOD=$METHOD" \
             2>&1 | tee "$RUNNER_TEMP/glasswing-build.log"
           build_status="${PIPESTATUS[0]}"
@@ -146,8 +151,8 @@ jobs:
           build_finished="$(date +%s)"
 
           mkdir -p "$RUNNER_TEMP/glasswing-metadata"
-          printf '{"plugin":"%s","version":"%s","channel":"%s","method":"%s","build_seconds":%s,"build_exit_code":%s}\n' \
-            "$PLUGIN" "$VERSION" "$CHANNEL" "$METHOD" \
+          printf '{"plugin":"%s","version":"%s","channel":"%s","event_channel":"%s","method":"%s","build_seconds":%s,"build_exit_code":%s}\n' \
+            "$PLUGIN" "$VERSION" "$CHANNEL" "$EVENT_CHANNEL" "$METHOD" \
             "$((build_finished-build_started))" "$build_status" \
             > "$RUNNER_TEMP/glasswing-metadata/metadata.json"
           test "$build_status" -eq 0

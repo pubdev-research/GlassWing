@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 const String pluginName = String.fromEnvironment('GW_PLUGIN');
 const String channelName = String.fromEnvironment('GW_CHANNEL');
+const String eventChannelName = String.fromEnvironment('GW_EVENT_CHANNEL');
 const String methodName = String.fromEnvironment('GW_METHOD');
 
 void main() {
@@ -35,11 +36,24 @@ class _PluginHostAppState extends State<PluginHostApp> {
       'key': '12345678912345670648654658281111',
       'iv': '101112345678',
       'filePath': '/sdcard/Download/benchmark-input.apk',
+      'path': '/sdcard/Download/benchmark-input.pdf',
+      'paths': <String>['/sdcard/Download/benchmark-input.pdf'],
+      'outputDirPath': '/sdcard/Download/benchmark-output.pdf',
       'pageNumber': 1,
+      'posId': 'benchmark-position',
+      'logo': 'benchmark_logo',
+      'timeout': 3.5,
+      'appName': 'benchmark-app',
+      'expFeat': false,
       'value': 'benchmark-user-controlled-value',
     };
 
     try {
+      if (eventChannelName.isNotEmpty) {
+        const EventChannel(eventChannelName).receiveBroadcastStream(
+          'benchmark-event-arguments',
+        ).listen((_) {});
+      }
       final result = await channel.invokeMethod<Object?>(methodName, payload);
       if (mounted) {
         setState(() => status = 'completed: $result');
