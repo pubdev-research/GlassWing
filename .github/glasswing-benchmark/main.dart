@@ -7,6 +7,7 @@ const String pluginName = String.fromEnvironment('GW_PLUGIN');
 const String channelName = String.fromEnvironment('GW_CHANNEL');
 const String eventChannelName = String.fromEnvironment('GW_EVENT_CHANNEL');
 const String methodName = String.fromEnvironment('GW_METHOD');
+const String payloadKind = String.fromEnvironment('GW_PAYLOAD_KIND');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +32,7 @@ class _PluginHostAppState extends State<PluginHostApp> {
 
   Future<void> invokePlugin() async {
     const channel = MethodChannel(channelName);
-    const payload = <String, Object>{
+    const mapPayload = <String, Object>{
       'plainText': 'benchmark-sensitive-plaintext',
       'key': '12345678912345670648654658281111',
       'iv': '101112345678',
@@ -47,6 +48,9 @@ class _PluginHostAppState extends State<PluginHostApp> {
       'expFeat': false,
       'value': 'benchmark-user-controlled-value',
     };
+    final Object payload = payloadKind == 'notification_action'
+        ? <Object>['benchmark-notification-id', 0]
+        : mapPayload;
 
     try {
       if (eventChannelName.isNotEmpty) {

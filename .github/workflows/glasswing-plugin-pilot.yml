@@ -13,21 +13,12 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          - plugin: easy_pdf_viewer
-            version: 1.0.8
-            channel: easy_pdf_viewer_plugin
-            event_channel: ''
-            method: getPage
-          - plugin: flutter_unad_ads_global
-            version: 1.0.15
-            channel: flutter_unad_ads_global
-            event_channel: flutter_unad_ads_global_event
-            method: showSplashAd
-          - plugin: pdf_merger
-            version: 0.0.6
-            channel: pdf_merger
-            event_channel: ''
-            method: mergeMultiplePDF
+          - plugin: flutter_notification_listener_plus
+            version: 1.3.7
+            channel: flutter_notification_listener/bg_method
+            event_channel: flutter_notification_listener/events
+            method: service.tap_action
+            payload_kind: notification_action
 
     steps:
       - name: Check out GlassWing
@@ -110,6 +101,7 @@ jobs:
           CHANNEL: ${{ matrix.channel }}
           EVENT_CHANNEL: ${{ matrix.event_channel }}
           METHOD: ${{ matrix.method }}
+          PAYLOAD_KIND: ${{ matrix.payload_kind }}
         shell: bash
         run: |
           set -euo pipefail
@@ -144,6 +136,7 @@ jobs:
             --dart-define="GW_CHANNEL=$CHANNEL" \
             --dart-define="GW_EVENT_CHANNEL=$EVENT_CHANNEL" \
             --dart-define="GW_METHOD=$METHOD" \
+            --dart-define="GW_PAYLOAD_KIND=$PAYLOAD_KIND" \
             2>&1 | tee "$RUNNER_TEMP/glasswing-build.log"
           build_status="${PIPESTATUS[0]}"
           set -e
@@ -151,8 +144,8 @@ jobs:
           build_finished="$(date +%s)"
 
           mkdir -p "$RUNNER_TEMP/glasswing-metadata"
-          printf '{"plugin":"%s","version":"%s","channel":"%s","event_channel":"%s","method":"%s","build_seconds":%s,"build_exit_code":%s}\n' \
-            "$PLUGIN" "$VERSION" "$CHANNEL" "$EVENT_CHANNEL" "$METHOD" \
+          printf '{"plugin":"%s","version":"%s","channel":"%s","event_channel":"%s","method":"%s","payload_kind":"%s","build_seconds":%s,"build_exit_code":%s}\n' \
+            "$PLUGIN" "$VERSION" "$CHANNEL" "$EVENT_CHANNEL" "$METHOD" "$PAYLOAD_KIND" \
             "$((build_finished-build_started))" "$build_status" \
             > "$RUNNER_TEMP/glasswing-metadata/metadata.json"
           test "$build_status" -eq 0
