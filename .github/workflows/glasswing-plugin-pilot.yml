@@ -91,6 +91,17 @@ jobs:
           fi
           test -f "$android_jar"
 
+          platform_34="$sdk_root/platforms/android-34/android.jar"
+          if [[ ! -f "$platform_34" ]]; then
+            sdkmanager_bin="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+            set +o pipefail
+            yes | "$sdkmanager_bin" "platforms;android-34" >/dev/null
+            sdkmanager_status="${PIPESTATUS[1]}"
+            set -o pipefail
+            test "$sdkmanager_status" -eq 0
+          fi
+          test -f "$platform_34"
+
           legacy_android_jar="/Users/syc/Library/Android/sdk/platforms/android-30/android.jar"
           sudo mkdir -p "$(dirname "$legacy_android_jar")"
           sudo ln -sf "$android_jar" "$legacy_android_jar"
@@ -129,24 +140,29 @@ jobs:
           build_started="$(date +%s)"
           pushd "$host_root"
           flutter pub get
+          set +e
           flutter build apk \
             --release \
             --target-platform android-arm64 \
             --dart-define="GW_PLUGIN=$PLUGIN" \
             --dart-define="GW_CHANNEL=$CHANNEL" \
-            --dart-define="GW_METHOD=$METHOD"
+            --dart-define="GW_METHOD=$METHOD" \
+            2>&1 | tee "$RUNNER_TEMP/glasswing-build.log"
+          build_status="${PIPESTATUS[0]}"
+          set -e
           popd
           build_finished="$(date +%s)"
+
+          mkdir -p "$RUNNER_TEMP/glasswing-metadata"
+          printf '{"plugin":"%s","version":"%s","channel":"%s","method":"%s","build_seconds":%s,"build_exit_code":%s}\n' \
+            "$PLUGIN" "$VERSION" "$CHANNEL" "$METHOD" \
+            "$((build_finished-build_started))" "$build_status" \
+            > "$RUNNER_TEMP/glasswing-metadata/metadata.json"
+          test "$build_status" -eq 0
 
           cp "$host_root/build/app/outputs/flutter-apk/app-release.apk" \
             "$apk_root/${PLUGIN}.apk"
           unzip -l "$apk_root/${PLUGIN}.apk" | grep -q 'lib/arm64-v8a/libapp.so'
-
-          mkdir -p "$RUNNER_TEMP/glasswing-metadata"
-          printf '{"plugin":"%s","version":"%s","channel":"%s","method":"%s","build_seconds":%s}\n' \
-            "$PLUGIN" "$VERSION" "$CHANNEL" "$METHOD" \
-            "$((build_finished-build_started))" \
-            > "$RUNNER_TEMP/glasswing-metadata/metadata.json"
 
       - name: Run GlassWing Core and Raw modes
         env:
@@ -193,5 +209,6 @@ jobs:
             ${{ runner.temp }}/glasswing-output/**/apk_info.txt
             ${{ runner.temp }}/glasswing-output/**/flowdroid-config-*.yaml
             ${{ runner.temp }}/glasswing-run.log
+            ${{ runner.temp }}/glasswing-build.log
             ${{ runner.temp }}/glasswing-metadata
             ${{ runner.temp }}/glasswing-apks/${{ matrix.plugin }}.apk
