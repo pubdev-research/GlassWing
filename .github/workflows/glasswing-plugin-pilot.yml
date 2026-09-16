@@ -174,10 +174,11 @@ jobs:
           python artifacts/flutter_apk_analyzer.py \
             "$RUNNER_TEMP/glasswing-apks" \
             "$RUNNER_TEMP/glasswing-output" \
+            --mode core \
             2>&1 | tee "$RUNNER_TEMP/glasswing-run.log"
           analyzer_status="${PIPESTATUS[0]}"
           analysis_finished="$(date +%s)"
-          printf '{"analysis_seconds":%s,"analyzer_exit_code":%s}\n' \
+          printf '{"analysis_mode":"core","analysis_seconds":%s,"analyzer_exit_code":%s}\n' \
             "$((analysis_finished-analysis_started))" "$analyzer_status" \
             > "$RUNNER_TEMP/glasswing-metadata/timing.json"
           exit "$analyzer_status"
@@ -188,14 +189,9 @@ jobs:
           set -euo pipefail
           core_result="$(find "$RUNNER_TEMP/glasswing-output" -type f \
             -name analysis_results_core.txt -print -quit)"
-          raw_result="$(find "$RUNNER_TEMP/glasswing-output" -type f \
-            -name analysis_results_raw.txt -print -quit)"
           test -n "$core_result"
           test -s "$core_result"
-          test -n "$raw_result"
-          test -s "$raw_result"
           grep -q "Analysis Results" "$core_result"
-          grep -q "Analysis Results" "$raw_result"
 
       - name: Upload compact pilot results
         if: always()

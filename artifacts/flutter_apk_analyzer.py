@@ -13,7 +13,7 @@ from typing import List, Dict, Any
 
 
 class FlutterAPKAnalyzer:
-    def __init__(self, apk_dir: str, output_dir: str):
+    def __init__(self, apk_dir: str, output_dir: str, mode: str = "both"):
         self.apk_dir = Path(apk_dir).resolve()
         self.output_dir = Path(output_dir).resolve()
         self.script_dir = Path(__file__).parent.resolve()
@@ -24,6 +24,7 @@ class FlutterAPKAnalyzer:
         ).resolve()
         self.base_config_path = self.script_dir / "flowdroid-config.yaml"
         self.android_jar = os.environ.get("GLASSWING_ANDROID_JAR")
+        self.mode = mode
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -241,23 +242,25 @@ class FlutterAPKAnalyzer:
             
             success = True
             
-            print(f"\n{'-'*40}")
-            print("Starting Core analysis")
-            print(f"{'-'*40}")
-            
-            core_config = self.create_glasswing_config(apk_path, work_dir, "core")
-            if not self.run_glasswing(core_config):
-                print("Core analysis failed")
-                success = False
-            
-            print(f"\n{'-'*40}")
-            print("Starting Raw analysis")
-            print(f"{'-'*40}")
-            
-            raw_config = self.create_glasswing_config(apk_path, work_dir, "raw")
-            if not self.run_glasswing(raw_config):
-                print("Raw analysis failed")
-                success = False
+            if self.mode in ("core", "both"):
+                print(f"\n{'-'*40}")
+                print("Starting Core analysis")
+                print(f"{'-'*40}")
+
+                core_config = self.create_glasswing_config(apk_path, work_dir, "core")
+                if not self.run_glasswing(core_config):
+                    print("Core analysis failed")
+                    success = False
+
+            if self.mode in ("raw", "both"):
+                print(f"\n{'-'*40}")
+                print("Starting Raw analysis")
+                print(f"{'-'*40}")
+
+                raw_config = self.create_glasswing_config(apk_path, work_dir, "raw")
+                if not self.run_glasswing(raw_config):
+                    print("Raw analysis failed")
+                    success = False
             
             if success:
                 print(f"\n✅ APK {apk_path.name} processed successfully")
@@ -302,6 +305,12 @@ def main():
     parser = argparse.ArgumentParser(description="Flutter APK Analysis Automation Tool")
     parser.add_argument("apk_dir", help="Directory containing APK files")
     parser.add_argument("output_dir", help="Output directory")
+    parser.add_argument(
+        "--mode",
+        choices=("core", "raw", "both"),
+        default="both",
+        help="GlassWing preprocessing mode to run (default: both)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     
     args = parser.parse_args()
@@ -311,7 +320,7 @@ def main():
         sys.exit(1)
     
     try:
-        analyzer = FlutterAPKAnalyzer(args.apk_dir, args.output_dir)
+        analyzer = FlutterAPKAnalyzer(args.apk_dir, args.output_dir, args.mode)
         analyzer.analyze_all_apks()
     except KeyboardInterrupt:
         print("\nAnalysis interrupted by user")
